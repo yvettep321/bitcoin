@@ -21,10 +21,8 @@
 #endif // ENABLE_WALLET
 
 #include <QApplication>
-#include <QDebug>
 #include <QObject>
 #include <QTest>
-
 #include <functional>
 
 #if defined(QT_STATICPLUGIN)
@@ -43,6 +41,8 @@ Q_IMPORT_PLUGIN(QAndroidPlatformIntegrationPlugin)
 #endif
 #endif
 
+using node::NodeContext;
+
 const std::function<void(const std::string&)> G_TEST_LOG_FUN{};
 
 const std::function<std::vector<const char*>()> G_TEST_COMMAND_LINE_ARGUMENTS{};
@@ -56,10 +56,9 @@ int main(int argc, char* argv[])
     // regtest params.
     //
     // All tests must use their own testing setup (if needed).
-    fs::create_directories([] {
+    {
         BasicTestingSetup dummy{CBaseChainParams::REGTEST};
-        return gArgs.GetDataDirNet() / "blocks";
-    }());
+    }
 
     std::unique_ptr<interfaces::Init> init = interfaces::MakeGuiInit(argc, argv);
     gArgs.ForceSetArg("-listen", "0");
@@ -69,6 +68,8 @@ int main(int argc, char* argv[])
     gArgs.ForceSetArg("-fixedseeds", "0");
     gArgs.ForceSetArg("-upnp", "0");
     gArgs.ForceSetArg("-natpmp", "0");
+
+    bool fInvalid = false;
 
     // Prefer the "minimal" platform for the test instead of the normal default
     // platform ("xcb", "windows", or "cocoa") so tests can't unintentionally
@@ -85,32 +86,32 @@ int main(int argc, char* argv[])
     app.setApplicationName("Bitcoin-Qt-test");
     app.createNode(*init);
 
-    int num_test_failures{0};
-
     AppTests app_tests(app);
-    num_test_failures += QTest::qExec(&app_tests);
-
+    if (QTest::qExec(&app_tests) != 0) {
+        fInvalid = true;
+    }
     OptionTests options_tests(app.node());
-    num_test_failures += QTest::qExec(&options_tests);
-
+    if (QTest::qExec(&options_tests) != 0) {
+        fInvalid = true;
+    }
     URITests test1;
-    num_test_failures += QTest::qExec(&test1);
-
+    if (QTest::qExec(&test1) != 0) {
+        fInvalid = true;
+    }
     RPCNestedTests test3(app.node());
-    num_test_failures += QTest::qExec(&test3);
-
+    if (QTest::qExec(&test3) != 0) {
+        fInvalid = true;
+    }
 #ifdef ENABLE_WALLET
     WalletTests test5(app.node());
-    num_test_failures += QTest::qExec(&test5);
-
+    if (QTest::qExec(&test5) != 0) {
+        fInvalid = true;
+    }
     AddressBookTests test6(app.node());
-    num_test_failures += QTest::qExec(&test6);
+    if (QTest::qExec(&test6) != 0) {
+        fInvalid = true;
+    }
 #endif
 
-    if (num_test_failures) {
-        qWarning("\nFailed tests: %d\n", num_test_failures);
-    } else {
-        qDebug("\nAll tests passed.\n");
-    }
-    return num_test_failures;
+    return fInvalid;
 }
